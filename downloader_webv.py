@@ -30,17 +30,29 @@ class DownloadHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             
             try:
-                output_folder = os.path.join(os.path.expanduser("~"), "Downloads", "Videos")
+                # Use /tmp directory on Render (ephemeral storage)
+                output_folder = os.path.join('/tmp', 'Videos')
                 os.makedirs(output_folder, exist_ok=True)
+                
+                # Map quality presets to flexible format strings that work across platforms
+                quality_map = {
+                    '5+1': 'worst[height<=240]+bestaudio/worst',
+                    '7+2': 'best[height<=360]+bestaudio/best[height<=360]',
+                    '9+2': 'best[height<=480]+bestaudio/best[height<=480]'
+                }
+                
+                format_string = quality_map.get(quality, 'best[height<=480]+bestaudio/best')
                 
                 ydl_opts = {
                     'outtmpl': os.path.join(output_folder, '%(title)s.%(ext)s'),
-                    'format': quality,
+                    'format': format_string,
                     'merge_output_format': 'mkv',  # MKV supports embedded subtitles better
                     'writesubtitles': True,
                     'writeautomaticsub': True,
-                    'subtitleslangs': ['en', 'zh', 'zh-Hans', 'zh-Hant', 'all'],
+                    # 'subtitleslangs': ['en', 'zh', 'zh-Hans', 'zh-Hant', 'all'],
+                    'subtitleslangs': ['en'],
                     'embedsubtitles': True,
+                    'ignoreerrors': True,  # Continue even if subtitles fail
                     'postprocessors': [{
                         'key': 'FFmpegEmbedSubtitle',
                         'already_have_subtitle': False
@@ -75,6 +87,7 @@ class DownloadHandler(SimpleHTTPRequestHandler):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="https://fav.farm/🎬">
     <title>BVD</title>
     <style>
         * {
@@ -85,7 +98,7 @@ class DownloadHandler(SimpleHTTPRequestHandler):
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg,#764ba2 0%, #667eea 50%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -108,6 +121,12 @@ class DownloadHandler(SimpleHTTPRequestHandler):
             font-size: 32px;
         }
         
+        h3 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+
         .subtitle {
             color: #666;
             margin-bottom: 30px;
@@ -254,11 +273,24 @@ class DownloadHandler(SimpleHTTPRequestHandler):
         .info-box strong {
             color: #333;
         }
+        
+        .warning-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 13px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>BVD - Blink-Video-Downloader</h1>
+        <div style="text-align: center; margin-bottom: 20px;">
+        <h1>BVD</h1>
+        <h3>Blink-Video-Downloader</h3>
+        </div>
         <p class="subtitle">Download videos with audio and subtitles</p>
         
         <form id="downloadForm">
@@ -296,9 +328,13 @@ class DownloadHandler(SimpleHTTPRequestHandler):
         
         <div id="status" class="status"></div>
         
+        <div class="warning-box">
+            <strong>⚠️ Note:</strong> Videos are temporarily stored on the server. Download links expire when the server restarts.
+        </div>
+        
         <div class="info-box">
             <strong>📁 Save Location:</strong><br>
-            ~/Downloads/Videos/
+            Server: /tmp/Videos/ (temporary storage)
         </div>
     </div>
     
@@ -354,13 +390,16 @@ class DownloadHandler(SimpleHTTPRequestHandler):
         '''
 
 def run_server(port=8000):
-    server_address = ('', port)
+    # Bind to 0.0.0.0 to accept connections from any network interface
+    server_address = ('0.0.0.0', port)
     httpd = HTTPServer(server_address, DownloadHandler)
     print(f"🚀 Video Downloader is running!")
-    print(f"📱 Open your browser and go to: http://localhost:{port}")
-    print(f"💾 Videos will be saved to: ~/Downloads/Videos/")
+    print(f"📱 Server listening on port {port}")
+    print(f"💾 Videos will be saved to: /tmp/Videos/")
     print(f"\nPress Ctrl+C to stop the server")
     httpd.serve_forever()
 
 if __name__ == '__main__':
-    run_server()
+    # Get port from environment variable (Render sets this)
+    port = int(os.environ.get('PORT', 8000))
+    run_server(port)
