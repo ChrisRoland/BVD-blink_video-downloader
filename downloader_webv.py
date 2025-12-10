@@ -75,7 +75,7 @@ class DownloadHandler(SimpleHTTPRequestHandler):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Downloader</title>
+    <title>BVD</title>
     <style>
         * {
             margin: 0;
@@ -180,7 +180,7 @@ class DownloadHandler(SimpleHTTPRequestHandler):
         button {
             width: 100%;
             padding: 16px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #667eea;
             color: white;
             border: none;
             border-radius: 10px;
@@ -258,7 +258,7 @@ class DownloadHandler(SimpleHTTPRequestHandler):
 </head>
 <body>
     <div class="container">
-        <h1>🎬 Video Downloader</h1>
+        <h1>BVD - Blink-Video-Downloader</h1>
         <p class="subtitle">Download videos with audio and subtitles</p>
         
         <form id="downloadForm">
