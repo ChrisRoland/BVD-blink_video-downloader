@@ -3,18 +3,62 @@ import json
 import yt_dlp
 import os
 import threading
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, quote
 import io
+import uuid
 
 class DownloadHandler(SimpleHTTPRequestHandler):
+    # Store download sessions
+    download_sessions = {}
+    
     def do_GET(self):
         if self.path == '/' or self.path == '/index.html':
             self.send_response(200)
             self.send_header('Content-type', 'text/html')
             self.end_headers()
             self.wfile.write(self.get_html().encode())
+        elif self.path.startswith('/get_file/'):
+            # Extract session ID from path
+            session_id = self.path.split('/get_file/')[1]
+            if session_id in self.download_sessions:
+                file_path = self.download_sessions[session_id]
+                if os.path.exists(file_path):
+                    self.send_file(file_path)
+                    # Clean up after sending
+                    try:
+                        os.remove(file_path)
+                        del self.download_sessions[session_id]
+                    except:
+                        pass
+                else:
+                    self.send_error(404, "File not found")
+            else:
+                self.send_error(404, "Session expired")
         else:
             super().do_GET()
+    
+    def send_file(self, file_path):
+        """Send file to user's browser for download"""
+        try:
+            file_size = os.path.getsize(file_path)
+            filename = os.path.basename(file_path)
+            
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Content-Disposition', f'attachment; filename="{quote(filename)}"')
+            self.send_header('Content-Length', str(file_size))
+            self.end_headers()
+            
+            # Stream file to user
+            with open(file_path, 'rb') as f:
+                chunk_size = 8192
+                while True:
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+        except Exception as e:
+            print(f"Error sending file: {e}")
     
     def do_POST(self):
         if self.path == '/download':
@@ -49,7 +93,6 @@ class DownloadHandler(SimpleHTTPRequestHandler):
                     'merge_output_format': 'mkv',  # MKV supports embedded subtitles better
                     'writesubtitles': True,
                     'writeautomaticsub': True,
-                    # 'subtitleslangs': ['en', 'zh', 'zh-Hans', 'zh-Hant', 'all'],
                     'subtitleslangs': ['en'],
                     'embedsubtitles': True,
                     'ignoreerrors': True,  # Continue even if subtitles fail
@@ -66,11 +109,16 @@ class DownloadHandler(SimpleHTTPRequestHandler):
                     filename = ydl.prepare_filename(info)
                     title = info.get('title', 'Unknown')
                     
+                    # Generate unique session ID for this download
+                    session_id = str(uuid.uuid4())
+                    self.download_sessions[session_id] = filename
+                    
                     response = {
                         'success': True,
                         'message': 'Download completed!',
-                        'filename': filename,
-                        'title': title
+                        'session_id': session_id,
+                        'title': title,
+                        'filename': os.path.basename(filename)
                     }
             except Exception as e:
                 response = {
@@ -220,6 +268,15 @@ class DownloadHandler(SimpleHTTPRequestHandler):
             cursor: not-allowed;
         }
         
+        .download-btn {
+            background: #28a745;
+            margin-top: 10px;
+        }
+        
+        .download-btn:hover:not(:disabled) {
+            box-shadow: 0 10px 20px rgba(40, 167, 69, 0.3);
+        }
+        
         .status {
             margin-top: 20px;
             padding: 15px;
@@ -273,16 +330,6 @@ class DownloadHandler(SimpleHTTPRequestHandler):
         .info-box strong {
             color: #333;
         }
-        
-        .warning-box {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            color: #856404;
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 20px;
-            font-size: 13px;
-        }
     </style>
 </head>
 <body>
@@ -291,7 +338,7 @@ class DownloadHandler(SimpleHTTPRequestHandler):
         <h1>BVD</h1>
         <h3>Blink-Video-Downloader</h3>
         </div>
-        <p class="subtitle">Download videos with audio and subtitles</p>
+        <p class="subtitle">Download videos with audio and subtitles directly to your device</p>
         
         <form id="downloadForm">
             <div class="input-group">
@@ -323,18 +370,14 @@ class DownloadHandler(SimpleHTTPRequestHandler):
                 </div>
             </div>
             
-            <button type="submit" id="downloadBtn">Download Video</button>
+            <button type="submit" id="downloadBtn">Prepare Download</button>
         </form>
         
         <div id="status" class="status"></div>
         
-        <div class="warning-box">
-            <strong>⚠️ Note:</strong> Videos are temporarily stored on the server. Download links expire when the server restarts.
-        </div>
-        
         <div class="info-box">
-            <strong>📁 Save Location:</strong><br>
-            Server: /tmp/Videos/ (temporary storage)
+            <strong> Download Info:</strong><br>
+            Video will be downloaded directly to your device's Downloads folder after processing.
         </div>
     </div>
     
@@ -352,7 +395,7 @@ class DownloadHandler(SimpleHTTPRequestHandler):
             // Show loading state
             status.className = 'status loading';
             status.style.display = 'flex';
-            status.innerHTML = '<div class="spinner"></div><span>Downloading video... This may take a few minutes.</span>';
+            status.innerHTML = '<div class="spinner"></div><span>Processing video... This may take a few minutes.</span>';
             downloadBtn.disabled = true;
             
             try {
@@ -368,22 +411,41 @@ class DownloadHandler(SimpleHTTPRequestHandler):
                 
                 if (data.success) {
                     status.className = 'status success';
+                    status.style.display = 'block';
                     status.innerHTML = `
-                        <strong>✓ Success!</strong><br>
+                        <strong>✓ Ready!</strong><br>
                         <strong>Title:</strong> ${data.title}<br>
-                        <strong>Saved to:</strong> ${data.filename}
+                        <strong>File:</strong> ${data.filename}<br>
+                        <button class="download-btn" onclick="downloadFile('${data.session_id}', '${data.filename}')">
+                            Download to Device
+                        </button>
                     `;
                 } else {
                     status.className = 'status error';
+                    status.style.display = 'block';
                     status.innerHTML = `<strong>✗ Error:</strong> ${data.message}`;
                 }
             } catch (error) {
                 status.className = 'status error';
+                status.style.display = 'block';
                 status.innerHTML = `<strong>✗ Error:</strong> ${error.message}`;
             } finally {
                 downloadBtn.disabled = false;
             }
         });
+        
+        function downloadFile(sessionId, filename) {
+            // Create a temporary link and trigger download
+            const link = document.createElement('a');
+            link.href = '/get_file/' + sessionId;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // Update status
+            status.innerHTML = '<strong>✓ Download started!</strong><br>Check your Downloads folder.';
+        }
     </script>
 </body>
 </html>
@@ -395,7 +457,7 @@ def run_server(port=8000):
     httpd = HTTPServer(server_address, DownloadHandler)
     print(f"🚀 Video Downloader is running!")
     print(f"📱 Server listening on port {port}")
-    print(f"💾 Videos will be saved to: /tmp/Videos/")
+    print(f"💾 Videos will be streamed directly to users")
     print(f"\nPress Ctrl+C to stop the server")
     httpd.serve_forever()
 
