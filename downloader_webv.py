@@ -146,7 +146,7 @@ class DownloadHandler(SimpleHTTPRequestHandler):
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: linear-gradient(135deg,#764ba2 0%, #667eea 50%, #764ba2 100%);
+            background: #A1BC98;
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -164,13 +164,13 @@ class DownloadHandler(SimpleHTTPRequestHandler):
         }
         
         h1 {
-            color: #667eea;
+            color: #A1BC98;
             margin-bottom: 10px;
             font-size: 32px;
         }
         
         h3 {
-            color: #667eea;
+            color: #A1BC98;
             margin-bottom: 20px;
             font-size: 20px;
         }
@@ -203,7 +203,7 @@ class DownloadHandler(SimpleHTTPRequestHandler):
         
         input[type="text"]:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #A1BC98;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
         
@@ -235,19 +235,19 @@ class DownloadHandler(SimpleHTTPRequestHandler):
         }
         
         input[type="radio"]:checked + .quality-label {
-            background: #667eea;
+            background: #A1BC98;
             color: white;
-            border-color: #667eea;
+            border-color: #A1BC98;
         }
         
         .quality-label:hover {
-            border-color: #667eea;
+            border-color: #A1BC98;
         }
         
         button {
             width: 100%;
             padding: 16px;
-            background: #667eea;
+            background: #A1BC98;
             color: white;
             border: none;
             border-radius: 10px;
